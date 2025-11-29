@@ -1,0 +1,4 @@
+*.db
+*.csv
+resources/*
+scraping/*.html

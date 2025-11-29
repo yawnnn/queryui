@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>SQLite Visualizer</title>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js">  -->
+    <script src="resources/sql-wasm-1.13.0.js">
+    </script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        #results table {
+            border-collapse: collapse;
+        }
+
+        #results th,
+        #results td {
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+        }
+
+        #results th {
+            cursor: pointer;
+            background: #eee;
+        }
+
+        .panel {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            border-radius: 6px;
+        }
+
+        .flex {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+    </style>
+    <!-- Dark mode styles -->
+    <style id="darkModeStyles">
+        body {
+            background: #1e1e1e;
+            color: #eee;
+        }
+
+        .panel {
+            border-color: #444;
+        }
+
+        #results th {
+            background: #333;
+        }
+
+        #results td,
+        #results th {
+            border-color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Panel: Table and Column Selection -->
+    <div class="panel">
+        <!-- dropdown for tables filled after loading DB -->
+        <select id="tableSelect"></select>
+
+        <div id="columnsContainer" class="flex"></div>
+        <button id="selectAll"></button>
+
+        <div class="flex" style="flex-direction: column; margin-top: 1rem;">
+            <!-- User-entered textboxes; these do not get auto-escaped, so user must provide safe SQL. -->
+            <label>WHERE:<br>
+                <input id="whereClause" type="text" style="width: 300px" />
+            </label>
+            <label>ORDER BY:<br>
+                <input id="orderByClause" type="text" style="width: 300px" />
+            </label>
+        </div>
+
+        <!-- History buttons -->
+        <div class="flex" style="margin-top: 1rem;">
+            <button id="prevQuery" disabled>◀ Previous query</button>
+            <button id="nextQuery" disabled>Next query ▶</button>
+        </div>
+
+        <button id="runQueryBtn" style="margin-top: 1rem;">Run Query</button>
+        <button id="exportCsv" disabled>Export to Csv</button>
+    </div>
+
+    <!-- Results Panel -->
+    <div id="results" class="panel">
+        <!-- Table gets dynamically inserted here -->
+    </div>
+
+
+    <script>
+        let db;
+        let tables = [];
+        let history = []; // stores states
+        let historyIdx = -1;
+        let selectAllIdx = 1;
+        const selectAllOpts = ["Deselect All", "Select All"];
+
+        function getAppState() {
+            return {
+                table: document.getElementById('tableSelect').value,
+                columns: [...document.querySelectorAll('#columnsContainer input:checked')].map(c => c.value),
+                where: document.getElementById('whereClause').value,
+                order: document.getElementById('orderByClause').value,
+            };
+        }
+
+        function setAppState(appState) {
+            document.getElementById('tableSelect').value = appState.table;
+            loadTableCols().then(() => {
+                // Check the right columns
+                const allCheckboxes = document.querySelectorAll('#columnsContainer input');
+                allCheckboxes.forEach(chk => {
+                    chk.checked = appState.columns.includes(chk.value);
+                });
+                document.getElementById('whereClause').value = appState.where;
+                document.getElementById('orderByClause').value = appState.order;
+            });
+        }
+
+        function updateHistoryBtns() {
+            document.getElementById('prevQuery').disabled = historyIdx <= 0;
+            document.getElementById('nextQuery').disabled = historyIdx >= history.length - 1;
+        }
+
+        // append only, never rewrite
+        function pushHistory(appState) {
+            history.push(appState);
+            historyIdx = history.length - 1;
+
+            updateHistoryBtns();
+        }
+
+        async function loadTableCols() {
+            const table = document.getElementById('tableSelect').value;
+            const container = document.getElementById('columnsContainer');
+            container.innerHTML = '';
+
+            if (!db) return;
+
+            const qr = db.exec(`PRAGMA table_info(${table});`);
+            const cols = qr[0].values.map(r => r[1]);
+
+            cols.forEach(col => {
+                if (col == "id")
+                    return;
+                const label = document.createElement('label');
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.value = col;
+                label.appendChild(chk);
+                label.append(' ' + col);
+                container.appendChild(label);
+            });
+
+            document.querySelectorAll('#columnsContainer input').forEach(c => c.checked = true);
+        }
+
+        function switchSelectAll() {
+            let next = (selectAllIdx + 1) % selectAllOpts.length;
+            document.getElementById('selectAll').innerText = selectAllOpts[next];
+            document.querySelectorAll('#columnsContainer input').forEach(c => c.checked = selectAllIdx);
+            selectAllIdx = next;
+        }
+
+        // Load DB on page load
+        window.onload = async function () {
+            // const sqlPromise = initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${file}` });
+            const sqlPromise = initSqlJs({ locateFile: file => `resources/sql-wasm-1.13.0.wasm` });
+            // don't cache the db with { cache: "no-store" }
+            const dataPromise = fetch("scraping/pf2.db", { cache: "no-store" }).then(r => r.arrayBuffer());
+
+            const [SQL, data] = await Promise.all([sqlPromise, dataPromise]);
+            db = new SQL.Database(new Uint8Array(data));
+
+            // Load list of tables from sqlite_master
+            const qr = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
+            tables = qr[0].values.map(v => v[0]);
+
+            const tableSelect = document.getElementById('tableSelect');
+            tables.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                tableSelect.appendChild(opt);
+            });
+
+            await loadTableCols();
+            
+            switchSelectAll();
+        };
+
+        function escape_sql_kw(s) {
+            if (s.toLowerCase() === "cast")
+                return "\"" + s + "\"";
+            return s;
+        }
+
+        function runQuery() {
+            const appState = getAppState();
+            pushHistory(appState);
+
+            const exportCsv = document.getElementById('exportCsv');
+
+            exportCsv.disabled = true;
+
+            let sql = `SELECT ${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`;
+            if (appState.where.trim() !== '') sql += ` WHERE ${appState.where}`;
+            if (appState.order.trim() !== '') sql += ` ORDER BY ${appState.order}`;
+
+            const resultArea = document.getElementById('results');
+
+            let res;
+            try {
+                console.log(sql);
+                res = db.exec(sql);
+            } catch (e) {
+                resultArea.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
+                return;
+            }
+
+            if (!res.length) {
+                resultArea.innerHTML += '<p>No results.</p>';
+                return;
+            }
+
+            resultArea.innerHTML = '';
+
+            exportCsv.disabled = false;
+
+            const cols = res[0].columns;
+            const rows = res[0].values;
+
+            const table = document.createElement('table');
+
+            // Header row with clickable ordering
+            const thead = document.createElement('thead');
+            const trh = document.createElement('tr');
+            cols.forEach(col => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                // th.onclick = () => {
+                //     document.getElementById('orderByClause').value = col;
+                //     runQuery();
+                // };
+                trh.appendChild(th);
+            });
+            thead.appendChild(trh);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                r.forEach((cell, idx) => {
+                    const td = document.createElement('td');
+                    // Interpret cell content as HTML
+                    td.innerHTML = cell === null ? '' : cell;
+                    // (Markdown rendering): td.innerHTML = marked.parse(cell === null ? '' : String(cell));
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+
+            resultArea.appendChild(table);
+        }
+
+        /**
+         * Events wiring
+         */
+
+        document.getElementById('selectAll').onclick = switchSelectAll;
+
+        document.getElementById('exportCsv').onclick = () => {
+            const table = document.querySelector('#results table');
+            if (!table) return;
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cells = [...row.children].map(rc => {
+                    if (!rc) return rc;
+                    const s = rc.innerText;
+                    if (s.includes(',') || s.includes('"') || s.includes('\n'))
+                        return '"' + s.replace(/"/g, '""') + '"';
+                    return s;
+                });
+                csv.push(cells.join(','));
+            });
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'query.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        document.getElementById('runQueryBtn').onclick = runQuery;
+
+        document.getElementById('prevQuery').onclick = () => {
+            if (historyIdx > 0) {
+                historyIdx--;
+                setAppState(history[historyIdx]);
+            }
+            updateHistoryBtns();
+        };
+
+        document.getElementById('nextQuery').onclick = () => {
+            if (historyIdx < history.length - 1) {
+                historyIdx++;
+                setAppState(history[historyIdx]);
+            }
+            updateHistoryBtns();
+        };
+
+        document.getElementById('tableSelect').addEventListener('change', loadTableCols);
+
+        /**
+         * TODO:
+         * - prettier UI
+         * - show final query to user
+         * - LIMIT x
+         * - export to Csv should ask where to download regardless of browser setting
+         * - support joins
+         * - support aggregate functions
+         * - load local sql-wasm, but fallback on web
+         */
+    </script>
+</body>
+
+</html>
