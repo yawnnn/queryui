@@ -6,6 +6,7 @@ const elmt = {
     whereClause: document.getElementById('whereClause'),
     orderByClause: document.getElementById('orderByClause'),
     limitClause: document.getElementById('limitClause'),
+    distinctClause: document.getElementById('distinctClause'),
     colsContainer: document.getElementById('colsContainer'),
     selectAll: document.getElementById('selectAll'),
     exportCsv: document.getElementById('exportCsv'),
@@ -32,6 +33,7 @@ function getAppState() {
         where: elmt.whereClause.value,
         order: elmt.orderByClause.value,
         limit: elmt.limitClause.value,
+        distinct: elmt.distinctClause.checked,
     };
 }
 
@@ -46,6 +48,7 @@ function setAppState(appState) {
         elmt.whereClause.value = appState.where;
         elmt.orderByClause.value = appState.order;
         elmt.limitClause.value = appState.limit;
+        elmt.distinctClause.checked = appState.distinct;
     });
 }
 
@@ -147,7 +150,7 @@ function buildQuery() {
         elmt.showSql.innerHTML += s;
     }
 
-    pushSql(`SELECT ${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`);
+    pushSql(`SELECT ${appState.distinct ? "DISTINCT " : ""}${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`);
     if (appState.where.trim() !== '') pushSql(`WHERE ${appState.where}`);
     if (appState.order.trim() !== '') pushSql(`ORDER BY ${appState.order}`);
     if (appState.limit.trim() !== '') pushSql(`LIMIT ${appState.limit}`);
