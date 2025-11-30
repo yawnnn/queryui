@@ -1,6 +1,7 @@
+
 const elmt = {
-    prevQuery: document.getElementById('prevQuery'),
-    nextQuery: document.getElementById('nextQuery'),
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
     tableSelect: document.getElementById('tableSelect'),
     whereClause: document.getElementById('whereClause'),
     orderByClause: document.getElementById('orderByClause'),
@@ -9,8 +10,8 @@ const elmt = {
     selectAll: document.getElementById('selectAll'),
     exportCsv: document.getElementById('exportCsv'),
     results: document.getElementById('results'),
-    runQueryBtn: document.getElementById('runQueryBtn'),
-    printSql: document.getElementById('printSql'),
+    runQuery: document.getElementById('runQuery'),
+    showSql: document.getElementById('showSql'),
 };
 
 let db;
@@ -22,6 +23,7 @@ let selectAll = {
     opts: ["Deselect All", "Select All"],
     idx: 1,
 };
+let currQuery = "";
 
 function getAppState() {
     return {
@@ -43,17 +45,18 @@ function setAppState(appState) {
         });
         elmt.whereClause.value = appState.where;
         elmt.orderByClause.value = appState.order;
-        elmt.limitClause = appState.limit;
+        elmt.limitClause.value = appState.limit;
     });
 }
 
 function updateHistoryBtns() {
-    elmt.prevQuery.disabled = history.idx <= 0;
-    elmt.nextQuery.disabled = history.idx >= history.lst.length - 1;
+    elmt.prev.disabled = history.idx <= 0;
+    elmt.next.disabled = history.idx >= history.lst.length - 1;
 }
 
 // append only, never rewrite
-function pushHistory(appState) {
+function saveAppState() {
+    let appState = getAppState();
     history.lst.push(appState);
     history.idx = history.lst.length - 1;
 
@@ -85,7 +88,7 @@ async function loadTableCols() {
     document.querySelectorAll('#colsContainer input').forEach(c => c.checked = true);
 }
 
-function switchSelectAll() {
+function toggleSelectAll() {
     let next = (selectAll.idx + 1) % selectAll.opts.length;
     elmt.selectAll.innerText = selectAll.opts[next];
     document.querySelectorAll('#colsContainer input').forEach(c => c.checked = selectAll.idx);
@@ -116,7 +119,7 @@ window.onload = async function () {
 
     await loadTableCols();
 
-    switchSelectAll();
+    toggleSelectAll();
 };
 
 function escape_sql_kw(s) {
@@ -125,37 +128,40 @@ function escape_sql_kw(s) {
     return s;
 }
 
-function runQuery() {
-    const appState = getAppState();
-    pushHistory(appState);
+function buildQuery() {
+    currQuery = "";
+    elmt.showSql.innerHTML = "";
 
-    elmt.results.innerHTML = '';
-    elmt.exportCsv.disabled = true;
-
-    let sql = "";
-    elmt.printSql.innerHTML = "";
+    let appState = getAppState();
 
     function pushSql(s) {
         s = s.trim();
 
-        if (sql !== '' && s !== '') {
-            sql += " ";
-            elmt.printSql.innerHTML += "<br/>";
+        if (currQuery !== '' && s !== '') {
+            currQuery += " ";
+            elmt.showSql.innerHTML += "\n";
         }
 
-        sql += s;
-        elmt.printSql.innerHTML += s;
+        currQuery += s;
+        elmt.showSql.innerHTML += s;
     }
 
     pushSql(`SELECT ${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`);
     if (appState.where.trim() !== '') pushSql(`WHERE ${appState.where}`);
     if (appState.order.trim() !== '') pushSql(`ORDER BY ${appState.order}`);
     if (appState.limit.trim() !== '') pushSql(`LIMIT ${appState.limit}`);
+}
+
+function runQuery() {
+    saveAppState();
+    buildQuery();
+
+    elmt.results.innerHTML = '';
+    elmt.exportCsv.hidden = true;
 
     let res;
     try {
-        console.log(sql);
-        res = db.exec(sql);
+        res = db.exec(currQuery);
     } catch (e) {
         elmt.results.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
         return;
@@ -166,7 +172,7 @@ function runQuery() {
         return;
     }
 
-    elmt.exportCsv.disabled = false;
+    elmt.exportCsv.hidden = false;
 
     const cols = res[0].columns;
     const rows = res[0].values;
@@ -210,7 +216,7 @@ function runQuery() {
  * Events wiring
  */
 
-elmt.selectAll.onclick = switchSelectAll;
+elmt.selectAll.onclick = toggleSelectAll;
 
 elmt.exportCsv.onclick = () => {
     const table = document.querySelector('#results table');
@@ -236,9 +242,9 @@ elmt.exportCsv.onclick = () => {
     URL.revokeObjectURL(url);
 };
 
-elmt.runQueryBtn.onclick = runQuery;
+elmt.runQuery.onclick = runQuery;
 
-elmt.prevQuery.onclick = () => {
+elmt.prev.onclick = () => {
     if (history.idx > 0) {
         history.idx--;
         setAppState(history.lst[history.idx]);
@@ -246,7 +252,7 @@ elmt.prevQuery.onclick = () => {
     updateHistoryBtns();
 };
 
-elmt.nextQuery.onclick = () => {
+elmt.next.onclick = () => {
     if (history.idx < history.lst.length - 1) {
         history.idx++;
         setAppState(history.lst[history.idx]);
