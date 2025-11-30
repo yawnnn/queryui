@@ -71,7 +71,7 @@
         <!-- dropdown for tables filled after loading DB -->
         <select id="tableSelect"></select>
 
-        <div id="columnsContainer" class="flex"></div>
+        <div id="colsContainer" class="flex"></div>
         <button id="selectAll"></button>
 
         <div class="flex" style="flex-direction: column; margin-top: 1rem;">
@@ -81,6 +81,9 @@
             </label>
             <label>ORDER BY:<br>
                 <input id="orderByClause" type="text" style="width: 300px" />
+            </label>
+            <label>LIMIT:<br>
+                <input id="limitClause" type="text" style="width: 300px" />
             </label>
         </div>
 
@@ -92,6 +95,8 @@
 
         <button id="runQueryBtn" style="margin-top: 1rem;">Run Query</button>
         <button id="exportCsv" disabled>Export to Csv</button>
+
+        <div id="printSql"></div>
     </div>
 
     <!-- Results Panel -->
@@ -101,51 +106,71 @@
 
 
     <script>
+        const elmt = {
+            prevQuery: document.getElementById('prevQuery'),
+            nextQuery: document.getElementById('nextQuery'),
+            tableSelect: document.getElementById('tableSelect'),
+            whereClause: document.getElementById('whereClause'),
+            orderByClause: document.getElementById('orderByClause'),
+            limitClause: document.getElementById('limitClause'),
+            colsContainer: document.getElementById('colsContainer'),
+            selectAll: document.getElementById('selectAll'),
+            exportCsv: document.getElementById('exportCsv'),
+            results: document.getElementById('results'),
+            runQueryBtn: document.getElementById('runQueryBtn'),
+            printSql: document.getElementById('printSql'),
+        };
+
         let db;
-        let tables = [];
-        let history = []; // stores states
-        let historyIdx = -1;
-        let selectAllIdx = 1;
-        const selectAllOpts = ["Deselect All", "Select All"];
+        let history = {
+            lst: [],
+            idx: -1,
+        };
+        let selectAll = {
+            opts: ["Deselect All", "Select All"],
+            idx: 1,
+        };
 
         function getAppState() {
             return {
-                table: document.getElementById('tableSelect').value,
-                columns: [...document.querySelectorAll('#columnsContainer input:checked')].map(c => c.value),
-                where: document.getElementById('whereClause').value,
-                order: document.getElementById('orderByClause').value,
+                table: elmt.tableSelect.value,
+                columns: [...document.querySelectorAll('#colsContainer input:checked')].map(c => c.value),
+                where: elmt.whereClause.value,
+                order: elmt.orderByClause.value,
+                limit: elmt.limitClause.value,
             };
         }
 
         function setAppState(appState) {
-            document.getElementById('tableSelect').value = appState.table;
+            elmt.tableSelect.value = appState.table;
             loadTableCols().then(() => {
                 // Check the right columns
-                const allCheckboxes = document.querySelectorAll('#columnsContainer input');
+                const allCheckboxes = document.querySelectorAll('#colsContainer input');
                 allCheckboxes.forEach(chk => {
                     chk.checked = appState.columns.includes(chk.value);
                 });
-                document.getElementById('whereClause').value = appState.where;
-                document.getElementById('orderByClause').value = appState.order;
+                elmt.whereClause.value = appState.where;
+                elmt.orderByClause.value = appState.order;
+                elmt.limitClause = appState.limit;
             });
         }
 
         function updateHistoryBtns() {
-            document.getElementById('prevQuery').disabled = historyIdx <= 0;
-            document.getElementById('nextQuery').disabled = historyIdx >= history.length - 1;
+            elmt.prevQuery.disabled = history.idx <= 0;
+            elmt.nextQuery.disabled = history.idx >= history.lst.length - 1;
         }
 
         // append only, never rewrite
         function pushHistory(appState) {
-            history.push(appState);
-            historyIdx = history.length - 1;
+            history.lst.push(appState);
+            history.idx = history.lst.length - 1;
 
             updateHistoryBtns();
         }
 
         async function loadTableCols() {
-            const table = document.getElementById('tableSelect').value;
-            const container = document.getElementById('columnsContainer');
+            const table = elmt.tableSelect.value;
+            const container = elmt.colsContainer;
             container.innerHTML = '';
 
             if (!db) return;
@@ -165,14 +190,14 @@
                 container.appendChild(label);
             });
 
-            document.querySelectorAll('#columnsContainer input').forEach(c => c.checked = true);
+            document.querySelectorAll('#colsContainer input').forEach(c => c.checked = true);
         }
 
         function switchSelectAll() {
-            let next = (selectAllIdx + 1) % selectAllOpts.length;
-            document.getElementById('selectAll').innerText = selectAllOpts[next];
-            document.querySelectorAll('#columnsContainer input').forEach(c => c.checked = selectAllIdx);
-            selectAllIdx = next;
+            let next = (selectAll.idx + 1) % selectAll.opts.length;
+            elmt.selectAll.innerText = selectAll.opts[next];
+            document.querySelectorAll('#colsContainer input').forEach(c => c.checked = selectAll.idx);
+            selectAll.idx = next;
         }
 
         // Load DB on page load
@@ -187,9 +212,9 @@
 
             // Load list of tables from sqlite_master
             const qr = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
-            tables = qr[0].values.map(v => v[0]);
+            let tables = qr[0].values.map(v => v[0]);
 
-            const tableSelect = document.getElementById('tableSelect');
+            const tableSelect = elmt.tableSelect;
             tables.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t;
@@ -198,7 +223,7 @@
             });
 
             await loadTableCols();
-            
+
             switchSelectAll();
         };
 
@@ -212,33 +237,44 @@
             const appState = getAppState();
             pushHistory(appState);
 
-            const exportCsv = document.getElementById('exportCsv');
+            elmt.results.innerHTML = '';
+            elmt.exportCsv.disabled = true;
 
-            exportCsv.disabled = true;
+            let sql = "";
+            elmt.printSql.innerHTML = "";
 
-            let sql = `SELECT ${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`;
-            if (appState.where.trim() !== '') sql += ` WHERE ${appState.where}`;
-            if (appState.order.trim() !== '') sql += ` ORDER BY ${appState.order}`;
+            function pushSql(s) {
+                s = s.trim();
 
-            const resultArea = document.getElementById('results');
+                if (sql !== '' && s !== '') {
+                    sql += " ";
+                    elmt.printSql.innerHTML += "<br/>";
+                }
+
+                sql += s;
+                elmt.printSql.innerHTML += s;
+            }
+
+            pushSql(`SELECT ${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`);
+            if (appState.where.trim() !== '') pushSql(`WHERE ${appState.where}`);
+            if (appState.order.trim() !== '') pushSql(`ORDER BY ${appState.order}`);
+            if (appState.limit.trim() !== '') pushSql(`LIMIT ${appState.limit}`);
 
             let res;
             try {
                 console.log(sql);
                 res = db.exec(sql);
             } catch (e) {
-                resultArea.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
+                elmt.results.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
                 return;
             }
 
             if (!res.length) {
-                resultArea.innerHTML += '<p>No results.</p>';
+                elmt.results.innerHTML += '<p>No results.</p>';
                 return;
             }
 
-            resultArea.innerHTML = '';
-
-            exportCsv.disabled = false;
+            elmt.exportCsv.disabled = false;
 
             const cols = res[0].columns;
             const rows = res[0].values;
@@ -252,7 +288,7 @@
                 const th = document.createElement('th');
                 th.textContent = col;
                 // th.onclick = () => {
-                //     document.getElementById('orderByClause').value = col;
+                //     elmt.orderByClause.value = col;
                 //     runQuery();
                 // };
                 trh.appendChild(th);
@@ -267,23 +303,24 @@
                     const td = document.createElement('td');
                     // Interpret cell content as HTML
                     td.innerHTML = cell === null ? '' : cell;
-                    // (Markdown rendering): td.innerHTML = marked.parse(cell === null ? '' : String(cell));
+                    // Interpret the contents as markdown
+                    // td.innerHTML = marked.parse(cell === null ? '' : String(cell));
                     tr.appendChild(td);
                 });
                 tbody.appendChild(tr);
             });
             table.appendChild(tbody);
 
-            resultArea.appendChild(table);
+            elmt.results.appendChild(table);
         }
 
         /**
          * Events wiring
          */
 
-        document.getElementById('selectAll').onclick = switchSelectAll;
+        elmt.selectAll.onclick = switchSelectAll;
 
-        document.getElementById('exportCsv').onclick = () => {
+        elmt.exportCsv.onclick = () => {
             const table = document.querySelector('#results table');
             if (!table) return;
             let csv = [];
@@ -307,31 +344,29 @@
             URL.revokeObjectURL(url);
         };
 
-        document.getElementById('runQueryBtn').onclick = runQuery;
+        elmt.runQueryBtn.onclick = runQuery;
 
-        document.getElementById('prevQuery').onclick = () => {
-            if (historyIdx > 0) {
-                historyIdx--;
-                setAppState(history[historyIdx]);
+        elmt.prevQuery.onclick = () => {
+            if (history.idx > 0) {
+                history.idx--;
+                setAppState(history.lst[history.idx]);
             }
             updateHistoryBtns();
         };
 
-        document.getElementById('nextQuery').onclick = () => {
-            if (historyIdx < history.length - 1) {
-                historyIdx++;
-                setAppState(history[historyIdx]);
+        elmt.nextQuery.onclick = () => {
+            if (history.idx < history.lst.length - 1) {
+                history.idx++;
+                setAppState(history.lst[history.idx]);
             }
             updateHistoryBtns();
         };
 
-        document.getElementById('tableSelect').addEventListener('change', loadTableCols);
+        elmt.tableSelect.addEventListener('change', loadTableCols);
 
         /**
          * TODO:
          * - prettier UI
-         * - show final query to user
-         * - LIMIT x
          * - export to Csv should ask where to download regardless of browser setting
          * - support joins
          * - support aggregate functions
