@@ -91,10 +91,20 @@ async function loadTableCols() {
     document.querySelectorAll('#colsContainer input').forEach(c => c.checked = true);
 }
 
+function ignoreColByDefault(col) {
+    if (elmt.tableSelect.value === "spells")
+        return ["rarity", "cast", "bloodlines", "mysteries", "lesson", "patron_themes", "pfs_note", "cost"].includes(col);
+    return false;
+}
+
+function setCheckedCols(checked) {
+    document.querySelectorAll('#colsContainer input').forEach(c => c.checked = ignoreColByDefault(c.value) ? false : checked);
+}
+
 function toggleSelectAll() {
     let next = (selectAll.idx + 1) % selectAll.opts.length;
     elmt.selectAll.innerText = selectAll.opts[next];
-    document.querySelectorAll('#colsContainer input').forEach(c => c.checked = selectAll.idx);
+    setCheckedCols(selectAll.idx != 0);
     selectAll.idx = next;
 }
 
@@ -119,6 +129,10 @@ window.onload = async function () {
         opt.textContent = t;
         tableSelect.appendChild(opt);
     });
+
+    // by default start with spells
+    if (tables.find(t => t === "spells"))
+        tableSelect.value = "spells";
 
     await loadTableCols();
 
@@ -264,7 +278,10 @@ elmt.next.onclick = () => {
     updateHistoryBtns();
 };
 
-elmt.tableSelect.addEventListener('change', loadTableCols);
+elmt.tableSelect.addEventListener('change', async () => {
+    await loadTableCols();
+    setCheckedCols(true);
+});
 
 function addToBuildQueryEvent(e) {
     e.addEventListener("change", buildQuery);
