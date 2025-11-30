@@ -120,6 +120,7 @@ window.onload = async function () {
     await loadTableCols();
 
     toggleSelectAll();
+    buildQuery();
 };
 
 function escape_sql_kw(s) {
@@ -261,3 +262,13 @@ elmt.next.onclick = () => {
 };
 
 elmt.tableSelect.addEventListener('change', loadTableCols);
+
+function addToBuildQueryEvent(e) {
+    e.addEventListener("change", buildQuery);
+    e.addEventListener("input", buildQuery);
+    for (let i = 0; e.children && i < e.children.length; i++) {
+        addToBuildQueryEvent(e.children[i]);
+    }
+}
+
+addToBuildQueryEvent(document.getElementsByClassName("query-layout")[0]);
