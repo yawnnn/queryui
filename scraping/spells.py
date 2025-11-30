@@ -100,9 +100,22 @@ def create_table(conn, dbtable, extra_cols):
     conn.commit()
 
 def parse_action(s: str) -> str:
-    if s and s[0] == '[' and s[-1] == ']':
-        s = s[1:-1]
-        s = s.replace('-', ' ').capitalize()
+    if s:
+        if s[0] == '[' and s[-1] == ']':
+            s = s[1:-1]
+            s = s.replace('-', ' ').capitalize()
+        s = re.sub(" [Aa]ctions?", "", s)
+        slow = s.lower()
+        if slow.startswith("one"):
+            s = "1"
+        elif slow.startswith("two"):
+            s = "2"
+        elif slow.startswith("three"):
+            s = "3"
+        elif slow.startswith("free"):
+            s = "F"
+        elif slow.startswith("reaction"):
+            s = "R"
     return s
 
 def mk_link(text: str, url: str) -> str:
