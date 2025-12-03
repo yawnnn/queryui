@@ -152,6 +152,9 @@ body {
 
 #results th {
     background: #333;
+    position: sticky;
+    top: 0;
+    z-index: 5;
 }
 
 #results td,
