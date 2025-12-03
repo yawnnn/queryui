@@ -44,7 +44,7 @@ input {
 /* --- Layout improvements --- */
 .query-layout {
     display: grid;
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 350px 1fr;
     /* left side narrow, right side larger */
     gap: 1rem;
     align-items: start;
@@ -62,7 +62,8 @@ input {
 
 /* Column list container */
 #colsContainer {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     flex-direction: column;
     gap: 4px;
     max-height: 220px;
