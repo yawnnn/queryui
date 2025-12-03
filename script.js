@@ -13,6 +13,7 @@ const elmt = {
     results: document.getElementById('results'),
     runQuery: document.getElementById('runQuery'),
     showSql: document.getElementById('showSql'),
+    rowCount: document.getElementById("rowCount"),
 };
 
 let db;
@@ -176,6 +177,7 @@ function runQuery() {
 
     elmt.results.innerHTML = '';
     elmt.exportCsv.hidden = true;
+    elmt.rowCount.textContent = '';
 
     let res;
     try {
@@ -195,6 +197,7 @@ function runQuery() {
     const cols = res[0].columns;
     const rows = res[0].values;
 
+    elmt.rowCount.textContent = `${rows.length} rows`
     const table = document.createElement('table');
 
     // Header row with clickable ordering
