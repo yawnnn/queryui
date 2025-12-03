@@ -1,20 +1,25 @@
 
-const elmt = {
-    prev: document.getElementById('prev'),
-    next: document.getElementById('next'),
+// selections
+const selUI = {
     tableSelect: document.getElementById('tableSelect'),
+    colsSelect: document.getElementById('colsSelect'),
+    selectAll: document.getElementById('selectAll'),
     whereClause: document.getElementById('whereClause'),
     orderByClause: document.getElementById('orderByClause'),
     limitClause: document.getElementById('limitClause'),
     distinctClause: document.getElementById('distinctClause'),
-    colsContainer: document.getElementById('colsContainer'),
-    selectAll: document.getElementById('selectAll'),
+}
+
+// remaining UI
+const mainUI = {
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
+    showSql: document.getElementById('showSql'),
+    runQuery: document.getElementById('runQuery'),
+    rowCount: document.getElementById("rowCount"),
     exportCsv: document.getElementById('exportCsv'),
     results: document.getElementById('results'),
-    runQuery: document.getElementById('runQuery'),
-    showSql: document.getElementById('showSql'),
-    rowCount: document.getElementById("rowCount"),
-};
+}
 
 let db;
 let history = {
@@ -27,49 +32,48 @@ let selectAll = {
 };
 let currQuery = "";
 
-function getAppState() {
+function updateHistoryBtns() {
+    mainUI.prev.disabled = history.idx <= 0;
+    mainUI.next.disabled = history.idx >= history.lst.length - 1;
+}
+
+function getSelections() {
     return {
-        table: elmt.tableSelect.value,
-        columns: [...document.querySelectorAll('#colsContainer input:checked')].map(c => c.value),
-        where: elmt.whereClause.value,
-        order: elmt.orderByClause.value,
-        limit: elmt.limitClause.value,
-        distinct: elmt.distinctClause.checked,
+        table: selUI.tableSelect.value,
+        cols: [...selUI.colsSelect.querySelectorAll('input:checked')].map(c => c.value),
+        where: selUI.whereClause.value,
+        order: selUI.orderByClause.value,
+        limit: selUI.limitClause.value,
+        distinct: selUI.distinctClause.checked,
     };
 }
 
-function setAppState(appState) {
-    elmt.tableSelect.value = appState.table;
+function setSelections(selections) {
+    selUI.tableSelect.value = selections.table;
     loadTableCols().then(() => {
-        // Check the right columns
-        const allCheckboxes = document.querySelectorAll('#colsContainer input');
+        const allCheckboxes = selUI.colsSelect.querySelectorAll('input');
         allCheckboxes.forEach(chk => {
-            chk.checked = appState.columns.includes(chk.value);
+            chk.checked = selections.cols.includes(chk.value);
         });
-        elmt.whereClause.value = appState.where;
-        elmt.orderByClause.value = appState.order;
-        elmt.limitClause.value = appState.limit;
-        elmt.distinctClause.checked = appState.distinct;
+        selUI.whereClause.value = selections.where;
+        selUI.orderByClause.value = selections.order;
+        selUI.limitClause.value = selections.limit;
+        selUI.distinctClause.checked = selections.distinct;
     });
 }
 
-function updateHistoryBtns() {
-    elmt.prev.disabled = history.idx <= 0;
-    elmt.next.disabled = history.idx >= history.lst.length - 1;
-}
-
 // append only, never rewrite
-function saveAppState() {
-    let appState = getAppState();
-    history.lst.push(appState);
+function saveSelections() {
+    let selections = getSelections();
+    history.lst.push(selections);
     history.idx = history.lst.length - 1;
 
     updateHistoryBtns();
 }
 
 async function loadTableCols() {
-    const table = elmt.tableSelect.value;
-    const container = elmt.colsContainer;
+    const table = selUI.tableSelect.value;
+    const container = selUI.colsSelect;
     container.innerHTML = '';
 
     if (!db) return;
@@ -89,22 +93,22 @@ async function loadTableCols() {
         container.appendChild(label);
     });
 
-    document.querySelectorAll('#colsContainer input').forEach(c => c.checked = true);
+    document.querySelectorAll('#colsSelect input').forEach(c => c.checked = true);
 }
 
 function ignoreColByDefault(col) {
-    if (elmt.tableSelect.value === "spells")
-        return ["rarity", "cast", "bloodlines", "mysteries", "lesson", "patron_themes", "pfs_note", "cost"].includes(col);
+    if (selUI.tableSelect.value === "spells")
+        return ["rarity", "cast", "concentrate", "traditions", "domain", "requiremenets", "bloodlines", "mysteries", "lesson", "patron_themes", "deities", "pfs_note", "cost"].includes(col);
     return false;
 }
 
 function setCheckedCols(checked) {
-    document.querySelectorAll('#colsContainer input').forEach(c => c.checked = ignoreColByDefault(c.value) ? false : checked);
+    document.querySelectorAll('#colsSelect input').forEach(c => c.checked = ignoreColByDefault(c.value) ? false : checked);
 }
 
 function toggleSelectAll() {
     let next = (selectAll.idx + 1) % selectAll.opts.length;
-    elmt.selectAll.innerText = selectAll.opts[next];
+    selUI.selectAll.innerText = selectAll.opts[next];
     setCheckedCols(selectAll.idx != 0);
     selectAll.idx = next;
 }
@@ -123,7 +127,7 @@ window.onload = async function () {
     const qr = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
     let tables = qr[0].values.map(v => v[0]);
 
-    const tableSelect = elmt.tableSelect;
+    const tableSelect = selUI.tableSelect;
     tables.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t;
@@ -149,55 +153,55 @@ function escape_sql_kw(s) {
 
 function buildQuery() {
     currQuery = "";
-    elmt.showSql.innerHTML = "";
+    mainUI.showSql.innerHTML = "";
 
-    let appState = getAppState();
+    let selections = getSelections();
 
     function pushSql(s) {
         s = s.trim();
 
         if (currQuery !== '' && s !== '') {
             currQuery += " ";
-            elmt.showSql.innerHTML += "\n";
+            mainUI.showSql.innerHTML += "\n";
         }
 
         currQuery += s;
-        elmt.showSql.innerHTML += s;
+        mainUI.showSql.innerHTML += s;
     }
 
-    pushSql(`SELECT ${appState.distinct ? "DISTINCT " : ""}${appState.columns.length ? appState.columns.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${appState.table}`);
-    if (appState.where.trim() !== '') pushSql(`WHERE ${appState.where}`);
-    if (appState.order.trim() !== '') pushSql(`ORDER BY ${appState.order}`);
-    if (appState.limit.trim() !== '') pushSql(`LIMIT ${appState.limit}`);
+    pushSql(`SELECT ${selections.distinct ? "DISTINCT " : ""}${selections.cols.length ? selections.cols.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${selections.table}`);
+    if (selections.where.trim() !== '') pushSql(`WHERE ${selections.where}`);
+    if (selections.order.trim() !== '') pushSql(`ORDER BY ${selections.order}`);
+    if (selections.limit.trim() !== '') pushSql(`LIMIT ${selections.limit}`);
 }
 
 function runQuery() {
-    saveAppState();
+    saveSelections();
     buildQuery();
 
-    elmt.results.innerHTML = '';
-    elmt.exportCsv.hidden = true;
-    elmt.rowCount.textContent = '';
+    mainUI.results.innerHTML = '';
+    mainUI.exportCsv.hidden = true;
+    mainUI.rowCount.textContent = '';
 
     let res;
     try {
         res = db.exec(currQuery);
     } catch (e) {
-        elmt.results.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
+        mainUI.results.innerHTML += `<p style="color:red">Error: ${e.message}</p>`;
         return;
     }
 
     if (!res.length) {
-        elmt.results.innerHTML += '<p>No results.</p>';
+        mainUI.results.innerHTML += '<p>No results.</p>';
         return;
     }
 
-    elmt.exportCsv.hidden = false;
+    mainUI.exportCsv.hidden = false;
 
     const cols = res[0].columns;
     const rows = res[0].values;
 
-    elmt.rowCount.textContent = `${rows.length} rows`
+    mainUI.rowCount.textContent = `${rows.length} rows`
     const table = document.createElement('table');
 
     // Header row with clickable ordering
@@ -207,7 +211,7 @@ function runQuery() {
         const th = document.createElement('th');
         th.textContent = col;
         // th.onclick = () => {
-        //     elmt.orderByClause.value = col;
+        //     selUI.orderByClause.value = col;
         //     runQuery();
         // };
         trh.appendChild(th);
@@ -230,16 +234,16 @@ function runQuery() {
     });
     table.appendChild(tbody);
 
-    elmt.results.appendChild(table);
+    mainUI.results.appendChild(table);
 }
 
 /**
  * Events wiring
  */
 
-elmt.selectAll.onclick = toggleSelectAll;
+selUI.selectAll.onclick = toggleSelectAll;
 
-elmt.exportCsv.onclick = () => {
+mainUI.exportCsv.onclick = () => {
     const table = document.querySelector('#results table');
     if (!table) return;
     let csv = [];
@@ -263,25 +267,25 @@ elmt.exportCsv.onclick = () => {
     URL.revokeObjectURL(url);
 };
 
-elmt.runQuery.onclick = runQuery;
+mainUI.runQuery.onclick = runQuery;
 
-elmt.prev.onclick = () => {
+mainUI.prev.onclick = () => {
     if (history.idx > 0) {
         history.idx--;
-        setAppState(history.lst[history.idx]);
+        setSelections(history.lst[history.idx]);
     }
     updateHistoryBtns();
 };
 
-elmt.next.onclick = () => {
+mainUI.next.onclick = () => {
     if (history.idx < history.lst.length - 1) {
         history.idx++;
-        setAppState(history.lst[history.idx]);
+        setSelections(history.lst[history.idx]);
     }
     updateHistoryBtns();
 };
 
-elmt.tableSelect.addEventListener('change', async () => {
+selUI.tableSelect.addEventListener('change', async () => {
     await loadTableCols();
     setCheckedCols(true);
 });
@@ -294,7 +298,7 @@ function addToBuildQueryEvent(e) {
     }
 }
 
-addToBuildQueryEvent(document.getElementsByClassName("query-layout")[0]);
+addToBuildQueryEvent(document.getElementsByClassName("sel-panel")[0]);
 
 document.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
