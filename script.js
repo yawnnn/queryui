@@ -18,6 +18,7 @@ const mainUI = {
     runQuery: document.getElementById('runQuery'),
     rowCount: document.getElementById("rowCount"),
     exportCsv: document.getElementById('exportCsv'),
+    exportQuery: document.getElementById('exportQuery'),
     results: document.getElementById('results'),
 }
 
@@ -181,6 +182,7 @@ function runQuery() {
 
     mainUI.results.innerHTML = '';
     mainUI.exportCsv.hidden = true;
+    mainUI.exportQuery.hidden = true;
     mainUI.rowCount.textContent = '';
 
     let res;
@@ -197,6 +199,7 @@ function runQuery() {
     }
 
     mainUI.exportCsv.hidden = false;
+    mainUI.exportQuery.hidden = false;
 
     const cols = res[0].columns;
     const rows = res[0].values;
@@ -237,11 +240,60 @@ function runQuery() {
     mainUI.results.appendChild(table);
 }
 
+function saveFileFallback(suggestedName, contents, type) {
+    const blob = new Blob([contents], { type: type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function saveFilePicker(suggestedName, contents, type) {
+    let ext = suggestedName.split('.').pop();
+    if (ext)
+        ext = "." + ext;
+
+    let accept = {}
+    accept[type] = [ext];   // accept: { type: [ext] } doesnt work, cause it assumes `type` is the name of the key, not the variable
+
+    const handle = await window.showSaveFilePicker({
+        suggestedName: suggestedName,
+        types: [
+            {
+                accept: accept,
+            }
+        ]
+    });
+
+    const writable = await handle.createWritable();
+    await writable.write(contents);
+    await writable.close();
+}
+
+function saveFile(suggestedName, contents, type) {
+    if (window.showSaveFilePicker != undefined)
+        saveFilePicker(suggestedName, contents, type);
+    else
+        saveFileFallback(suggestedName, contents, type);
+}
+
 /**
  * Events wiring
  */
 
 selUI.selectAll.onclick = toggleSelectAll;
+
+async function exportQuery() {
+    const selections = getSelections();
+    const contents = JSON.stringify(selections, null, 2);
+    const fileName = `query-${selections.table || "state"}.json`;
+
+    saveFile(fileName, contents, "application/json");
+}
+
+mainUI.exportQuery.onclick = exportQuery;
 
 mainUI.exportCsv.onclick = () => {
     const table = document.querySelector('#results table');
@@ -258,13 +310,8 @@ mainUI.exportCsv.onclick = () => {
         });
         csv.push(cells.join(','));
     });
-    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'query.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+
+    saveFile('query.csv', csv.join('\n'), 'text/csv');
 };
 
 mainUI.runQuery.onclick = runQuery;
