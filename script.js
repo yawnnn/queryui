@@ -295,3 +295,9 @@ function addToBuildQueryEvent(e) {
 }
 
 addToBuildQueryEvent(document.getElementsByClassName("query-layout")[0]);
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        runQuery();
+    }
+});
