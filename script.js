@@ -110,6 +110,7 @@ function toggleSelectAll() {
     selUI.selectAll.innerText = selectAll.opts[next];
     setCheckedCols(selectAll.idx != 0);
     selectAll.idx = next;
+    buildQuery();
 }
 
 // Load DB on page load
