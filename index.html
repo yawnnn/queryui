@@ -9,7 +9,15 @@
     <title>SQLite Visualizer</title>
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js">  -->
     <script src="resources/sql-wasm-1.13.0.js"></script>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <script>
+        // cache buster
+        let link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.type = "text/css";
+        link.href = "style.css?v=" + Date.now();
+        document.head.appendChild(link);
+    </script>
+    <!-- <link rel="stylesheet" type="text/css" href="style.css"> -->
 </head>
 
 <body>
@@ -59,7 +67,13 @@
         <!-- Table gets dynamically inserted here -->
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        // cache buster
+        let s = document.createElement("script");
+        s.src = "script.js?v=" + Date.now();
+        document.body.appendChild(s);
+    </script>
+    <!-- <script src="script.js"></script> -->
 </body>
 
 </html>
