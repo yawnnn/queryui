@@ -30,7 +30,9 @@ input {
     background: #eee;
 }
 
-#exportQuery, #exportCsv {
+/*, #exportCsv*/
+#importQuery,
+#exportQuery {
     float: right
 }
 

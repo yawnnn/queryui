@@ -17,7 +17,7 @@ const mainUI = {
     showSql: document.getElementById('showSql'),
     runQuery: document.getElementById('runQuery'),
     rowCount: document.getElementById("rowCount"),
-    exportCsv: document.getElementById('exportCsv'),
+    importQuery: document.getElementById('importQuery'),
     exportQuery: document.getElementById('exportQuery'),
     results: document.getElementById('results'),
 }
@@ -181,7 +181,6 @@ function runQuery() {
     buildQuery();
 
     mainUI.results.innerHTML = '';
-    mainUI.exportCsv.hidden = true;
     mainUI.exportQuery.hidden = true;
     mainUI.rowCount.textContent = '';
 
@@ -198,7 +197,6 @@ function runQuery() {
         return;
     }
 
-    mainUI.exportCsv.hidden = false;
     mainUI.exportQuery.hidden = false;
 
     const cols = res[0].columns;
@@ -251,9 +249,7 @@ function saveFileFallback(suggestedName, contents, type) {
 }
 
 async function saveFilePicker(suggestedName, contents, type) {
-    let ext = suggestedName.split('.').pop();
-    if (ext)
-        ext = "." + ext;
+    const ext = "." + suggestedName.split('.').pop();
 
     let accept = {}
     accept[type] = [ext];   // accept: { type: [ext] } doesnt work, cause it assumes `type` is the name of the key, not the variable
@@ -279,11 +275,81 @@ function saveFile(suggestedName, contents, type) {
         saveFileFallback(suggestedName, contents, type);
 }
 
+async function loadFilePicker(suggestedName, type) {
+    const ext = "." + suggestedName.split('.').pop();
+
+    const accept = {};
+    accept[type] = [ext];
+
+    const [handle] = await window.showOpenFilePicker({
+        suggestedName: suggestedName,   // doesnt work
+        multiple: false,
+        types: [{ accept: accept }]
+    });
+
+    const file = await handle.getFile();
+
+    return await file.text();
+}
+
+function loadFileFallback(suggestedName, type) {
+    return new Promise((resolve, reject) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = type;
+
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                resolve(null);
+                return;
+            }
+
+            try {
+                resolve(await file.text());
+            } catch (err) {
+                reject(err);
+            }
+        };
+
+        input.click();
+    });
+}
+
+async function loadFile(suggestedName, type) {
+    if (window.showOpenFilePicker)
+        return await loadFilePicker(suggestedName, type);
+    else
+        return await loadFileFallback();
+}
+
 /**
  * Events wiring
  */
 
 selUI.selectAll.onclick = toggleSelectAll;
+
+mainUI.importQuery.onclick = async () => {
+    const selections = getSelections();
+    const suggested = `query-${selections.table || "state"}.json`;
+
+    const text = await loadFile(suggested, "application/json");
+    if (!text) return; // user cancelled
+
+    try {
+        const imported = JSON.parse(text);
+
+        if (!imported.table) {
+            alert("Missing 'table'");
+            return;
+        }
+
+        setSelections(imported);
+        buildQuery();
+    } catch (err) {
+        alert("Invalid JSON");
+    }
+};
 
 async function exportQuery() {
     const selections = getSelections();
@@ -294,25 +360,6 @@ async function exportQuery() {
 }
 
 mainUI.exportQuery.onclick = exportQuery;
-
-mainUI.exportCsv.onclick = () => {
-    const table = document.querySelector('#results table');
-    if (!table) return;
-    let csv = [];
-    const rows = table.querySelectorAll('tr');
-    rows.forEach(row => {
-        const cells = [...row.children].map(rc => {
-            if (!rc) return rc;
-            const s = rc.innerText;
-            if (s.includes(',') || s.includes('"') || s.includes('\n'))
-                return '"' + s.replace(/"/g, '""') + '"';
-            return s;
-        });
-        csv.push(cells.join(','));
-    });
-
-    saveFile('query.csv', csv.join('\n'), 'text/csv');
-};
 
 mainUI.runQuery.onclick = runQuery;
 
