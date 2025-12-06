@@ -51,16 +51,15 @@ function getSelections() {
 
 function setSelections(selections) {
     selUI.tableSelect.value = selections.table;
-    loadTableCols().then(() => {
-        const allCheckboxes = selUI.colsSelect.querySelectorAll('input');
-        allCheckboxes.forEach(chk => {
-            chk.checked = selections.cols.includes(chk.value);
-        });
-        selUI.whereClause.value = selections.where;
-        selUI.orderByClause.value = selections.order;
-        selUI.limitClause.value = selections.limit;
-        selUI.distinctClause.checked = selections.distinct;
+    loadTableCols();
+    const allCheckboxes = selUI.colsSelect.querySelectorAll('input');
+    allCheckboxes.forEach(chk => {
+        chk.checked = selections.cols.includes(chk.value);
     });
+    selUI.whereClause.value = selections.where;
+    selUI.orderByClause.value = selections.order;
+    selUI.limitClause.value = selections.limit;
+    selUI.distinctClause.checked = selections.distinct;
 }
 
 // append only, never rewrite
@@ -72,10 +71,9 @@ function saveSelections() {
     updateHistoryBtns();
 }
 
-async function loadTableCols() {
+function loadTableCols() {
     const table = selUI.tableSelect.value;
-    const container = selUI.colsSelect;
-    container.innerHTML = '';
+    selUI.colsSelect.innerHTML = '';
 
     if (!db) return;
 
@@ -91,7 +89,7 @@ async function loadTableCols() {
         chk.value = col;
         label.appendChild(chk);
         label.append(' ' + col);
-        container.appendChild(label);
+        selUI.colsSelect.appendChild(label);
     });
 
     document.querySelectorAll('#colsSelect input').forEach(c => c.checked = true);
@@ -140,7 +138,7 @@ window.onload = async function () {
     if (tables.find(t => t === "spells"))
         tableSelect.value = "spells";
 
-    await loadTableCols();
+    loadTableCols();
 
     toggleSelectAll();
     buildQuery();
@@ -380,7 +378,7 @@ mainUI.next.onclick = () => {
 };
 
 selUI.tableSelect.addEventListener('change', async () => {
-    await loadTableCols();
+    loadTableCols();
     setCheckedCols(true);
 });
 
@@ -395,7 +393,6 @@ function addToBuildQueryEvent(e) {
 addToBuildQueryEvent(document.getElementsByClassName("sel-panel")[0]);
 
 document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter')
         runQuery();
-    }
 });
