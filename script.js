@@ -330,7 +330,7 @@ selUI.selectAll.onclick = toggleSelectAll;
 
 mainUI.importQuery.onclick = async () => {
     const selections = getSelections();
-    const suggested = `query-${selections.table || "state"}.json`;
+    const suggested = `${selections.table || "state"}.json`;
 
     const text = await loadFile(suggested, "application/json");
     if (!text) return; // user cancelled
@@ -353,7 +353,7 @@ mainUI.importQuery.onclick = async () => {
 async function exportQuery() {
     const selections = getSelections();
     const contents = JSON.stringify(selections, null, 2);
-    const fileName = `query-${selections.table || "state"}.json`;
+    const fileName = `${selections.table || "state"}.json`;
 
     saveFile(fileName, contents, "application/json");
 }
