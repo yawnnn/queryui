@@ -3,6 +3,13 @@ import re
 import sqlite3
 from typing import Any
 
+# class Col:
+#     def __init__(self, name, dbtype, ignore_by_default=False, short_name=None):
+#         self.name = name
+#         self.dbtype = dbtype
+#         self.ignore_by_default = ignore_by_default
+#         self.short_name = short_name if short_name else name
+
 DBNAME = "pf2.db"
 RE_MULTIPLE_SPACES = re.compile(r"\s{2,}")
 
