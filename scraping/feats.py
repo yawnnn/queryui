@@ -1,4 +1,4 @@
-from libscrape import parse_text, parse_pfs_icon, normalize_str, normalize_cols, create_table_and_values
+from scraping.common import parse_text, parse_pfs_icon, normalize_str, normalize_cols, create_table_and_values
 from bs4 import BeautifulSoup
 import os
 
