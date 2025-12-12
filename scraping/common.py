@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 from typing import Any
+from bs4 import BeautifulSoup
 
 # class Col:
 #     def __init__(self, name, dbtype, ignore_by_default=False, short_name=None):
@@ -21,10 +22,11 @@ def normalize_str(s: str) -> str:
     s = s.strip()
     s = re.sub(RE_MULTIPLE_SPACES, " ", s)
     s = s.replace(" , ", ", ")
+
     return s
 
 
-def normalize_colname(name: str):
+def normalize_colname(name: str) -> str:
     return normalize_str(name).lower().replace(" ", "_")
 
 
@@ -42,14 +44,14 @@ def normalize_rows(rows: list[list[Any]]) -> list[list[Any]]:
 def parse_text(soup):
     """
     like bs4.get_text(), but
-    - preserves <strong>, <b>, <a>
-    - prefixes all href attributes
+    - preserves `strong`, `b`, `a` tags
+    - prefixes all href attributes with `baseurl`
     """
     from bs4 import NavigableString, Tag
 
-    baseurl = "https://2e.aonprd.com"
-
     def inner(soup) -> str:
+        baseurl = "https://2e.aonprd.com"
+
         # plain text → return as-is
         if isinstance(soup, NavigableString):
             return soup
@@ -66,10 +68,10 @@ def parse_text(soup):
                 abs_url = baseurl + url
                 return f'<a href="{abs_url}">{inner}</a>'
 
-            # # <strong> or <b>
-            # if soup.name in ("strong", "b"):
-            #     inner = "".join(parse_text(c) for c in soup.children)
-            #     return f"<strong>{inner}</strong>"
+            # <strong> or <b>
+            if soup.name in ("strong", "b"):
+                inner = "".join(parse_text(c) for c in soup.children)
+                return f"<strong>{inner}</strong>"
 
             # everything else → unwrap but keep inner text
             return " ".join(parse_text(c) for c in soup.children)
@@ -92,10 +94,10 @@ def parse_pfs_icon(soup):
 
     basename = os.path.basename(src).lower()
 
-    # find by case-insensitive, but return normal-case version
+    # find by case-insensitive, return first letter
     for ty in PFS_TYPES:
         if ty.lower() in basename:
-            return ty
+            return ty[0]
 
     return basename
 
@@ -116,3 +118,61 @@ def create_table_and_values(table: str, cols: list[(str, str)], rows: list[list[
 
     conn.commit()
     conn.close()
+
+
+def scrape_generic_table(basename: str):
+    dbtable = basename
+    filein = basename + ".html"
+
+    with open(filein, "r", encoding="utf-8") as f:
+        soup = BeautifulSoup(f, "html.parser")
+
+    table = soup.find("table")
+
+    # cols
+    thead = table.find("thead")
+    thead_rows = thead.find_all("tr")
+    assert len(thead_rows) == 1
+    thead_cols = thead_rows[0].find_all("th")
+    assert thead_cols
+
+    pfs_idx = -1
+    source_idx = -1
+    colnames = []
+    for idx, cell in enumerate(thead_cols):
+        name = cell.get_text(strip=True).lower()
+
+        if name == "source":
+            source_idx = idx
+            continue
+
+        if name == "pfs":
+            pfs_idx = idx
+
+        colnames.append(name)
+
+    colnames = list(map(normalize_colname, colnames))
+
+    # rows
+    tbody = table.find("tbody")
+    tbody_rows = tbody.find_all("tr")
+
+    rows = []
+    for tr in tbody_rows:
+        tds = tr.find_all("td")
+        row = []
+        for idx, cell in enumerate(tds):
+            if idx == source_idx:
+                continue
+            elif idx == pfs_idx:
+                text = parse_pfs_icon(cell)
+            else:
+                text = parse_text(cell)
+
+            row.append(normalize_str(text.capitalize()))
+
+        rows.append(row)
+
+    cols = [(name, "TEXT") for name in colnames]
+
+    create_table_and_values(dbtable, cols, rows)

@@ -1,4 +1,4 @@
-from scraping.common import parse_text, create_table_and_values, normalize_str, normalize_colname, normalize_rows
+from common import parse_text, create_table_and_values, normalize_str, normalize_colname, infer_cols_types
 from bs4 import BeautifulSoup
 import re
 import os
@@ -30,22 +30,29 @@ RE_ACTIONS = re.compile(r" [Aa]ctions?")
 
 
 def parse_actions(s: str) -> str:
-    if s:
-        if s[0] == "[" and s[-1] == "]":
-            s = s[1:-1]
-            s = s.replace("-", " ").capitalize()
-        s = re.sub(RE_ACTIONS, "", s)
-        s2 = s.lower()
-        if s2.startswith("one"):
-            s = "1"
-        elif s2.startswith("two"):
-            s = "2"
-        elif s2.startswith("three"):
-            s = "3"
-        elif s2.startswith("free"):
-            s = "0"
-        elif s2.startswith("reaction"):
-            s = "R"
+    s = s.strip()
+
+    if not s:
+        return s
+
+    if s[0] == "[" and s[-1] == "]":
+        s = s[1:-1]
+        s = s.replace("-", " ").capitalize()
+
+    s = re.sub(RE_ACTIONS, "", s).strip()
+    slower = s.lower()
+
+    if slower.startswith("one"):
+        s = "1"
+    elif slower.startswith("two"):
+        s = "2"
+    elif slower.startswith("three"):
+        s = "3"
+    elif slower.startswith("free"):
+        s = "0"
+    elif slower.startswith("reaction"):
+        s = "R"
+
     return s
 
 
@@ -58,7 +65,7 @@ PLURALS = {
 }
 
 
-def parse_dyn_col(dyn_cols, name):
+def parse_dyn_col(dyn_cols_freqs, name):
     colname = normalize_colname(name)
 
     # always skip source
@@ -67,12 +74,12 @@ def parse_dyn_col(dyn_cols, name):
 
     # sometimes they're present with their singular name
     colname = PLURALS.get(colname, colname)
-    dyn_cols[colname] = dyn_cols.get(colname, 0) + 1
+    dyn_cols_freqs[colname] = dyn_cols_freqs.get(colname, 0) + 1
 
     return colname
 
 
-def parse_dyn_vals(dyn_cols, dyn_vals, soup):
+def parse_dyn_vals(dyn_cols_freqs, dyn_vals, soup):
     for p in soup.find_all("p", recursive=False):
         s = p.find("strong")
         if not s:
@@ -80,13 +87,13 @@ def parse_dyn_vals(dyn_cols, dyn_vals, soup):
 
         col = s.text.strip().rstrip(":")
         val = p.get_text(" ", strip=True)[len(s.text) :].strip()
-        col = parse_dyn_col(dyn_cols, col)
+        col = parse_dyn_col(dyn_cols_freqs, col)
         if col:
             dyn_vals[col] = normalize_str(val)
 
 
 def parse(html):
-    dyn_cols = {}
+    dyn_cols_freqs = {}
     rows: list[dict] = []
     dyn_rows: list[dict] = []
 
@@ -102,9 +109,9 @@ def parse(html):
         assert section
 
         # dynamic columns
-        parse_dyn_vals(dyn_cols, dyn_vals, section)
+        parse_dyn_vals(dyn_cols_freqs, dyn_vals, section)
         for row in section.find_all("div", class_="row", recursive=False):
-            parse_dyn_vals(dyn_cols, dyn_vals, row)
+            parse_dyn_vals(dyn_cols_freqs, dyn_vals, row)
 
         # NAME
         art = li.find("article")
@@ -181,16 +188,18 @@ def parse(html):
         rows.append(vals)
         dyn_rows.append(dyn_vals)
 
-    # dyn_cols are optional, and some are definitely more popular then others
-    sorted_dyn_cols = sorted(dyn_cols, key=lambda x: dyn_cols[x], reverse=True)
-    dyn_cols = [(name, "TEXT") for name in sorted_dyn_cols]
+    # sort by popularity
+    dyn_colnames = sorted(dyn_cols_freqs, key=lambda x: dyn_cols_freqs[x], reverse=True)
+    #  build the actual rows in the right order, filling missing cols with None
+    dyn_rows = [[dyn_row.get(name) for name in dyn_colnames] for dyn_row in dyn_rows]
+    dyn_cols = [(name, "TEXT") for name in dyn_colnames]
 
     # now that i have everything i create the full cols list and build the rows following the same order
     allcols = BASE_COLS + dyn_cols
 
     allrows = []
     for row, dyn_row in zip(rows, dyn_rows):
-        allrow = [row.get(name) for name, _ in BASE_COLS] + [dyn_row.get(name) for name, _ in dyn_cols]
+        allrow = [row.get(name) for name, _ in BASE_COLS] + dyn_row
         allrows.append(allrow)
 
     return (allcols, allrows)
