@@ -192,7 +192,8 @@ def parse(html):
     dyn_colnames = sorted(dyn_cols_freqs, key=lambda x: dyn_cols_freqs[x], reverse=True)
     #  build the actual rows in the right order, filling missing cols with None
     dyn_rows = [[dyn_row.get(name) for name in dyn_colnames] for dyn_row in dyn_rows]
-    dyn_cols = [(name, "TEXT") for name in dyn_colnames]
+    # infer types
+    dyn_cols = infer_cols_types(dyn_colnames, dyn_rows)
 
     # now that i have everything i create the full cols list and build the rows following the same order
     allcols = BASE_COLS + dyn_cols

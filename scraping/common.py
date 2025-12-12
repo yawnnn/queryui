@@ -120,6 +120,54 @@ def create_table_and_values(table: str, cols: list[(str, str)], rows: list[list[
     conn.close()
 
 
+def infer_cols_types(cols: list[str], rows: list[list[str]]) -> list[tuple[str, str]]:
+    cols_with_types = []
+
+    for idx, name in enumerate(cols):
+        has_int = True
+        has_float = False
+        has_bool = True
+
+        for row in rows:
+            sval = row[idx]
+            if not sval:
+                continue
+
+            sval = sval.strip()
+            if not sval:
+                continue
+
+            if sval.lower() not in ["true", "false"]:
+                has_bool = False
+
+            if sval.isdigit() or (sval.startswith("-") and sval[1:].isdigit()):
+                continue
+            else:
+                try:
+                    float(sval)
+                    has_float = True
+                    has_int = False
+                except ValueError:
+                    # definitely TEXT
+                    has_int = has_bool = has_float = False
+                    break
+
+        if has_bool:
+            t = "BOOL"
+        elif has_int:
+            t = "INT"
+        elif has_float:
+            t = "FLOAT"
+        else:
+            t = "TEXT"
+
+        cols_with_types.append((name, t))
+
+    assert(len(cols) == len(cols_with_types))
+
+    return cols_with_types
+
+
 def scrape_generic_table(basename: str):
     dbtable = basename
     filein = basename + ".html"
@@ -173,6 +221,6 @@ def scrape_generic_table(basename: str):
 
         rows.append(row)
 
-    cols = [(name, "TEXT") for name in colnames]
+    cols = infer_cols_types(colnames, rows)
 
     create_table_and_values(dbtable, cols, rows)
