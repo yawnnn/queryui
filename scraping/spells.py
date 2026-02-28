@@ -1,7 +1,12 @@
-from common import parse_text, create_table_and_values, normalize_str, normalize_colname, infer_cols_types
+from scraping.lib import (
+    parse_text,
+    create_table_and_values,
+    normalize_str,
+    normalize_colname,
+    infer_cols_types,
+)
 from bs4 import BeautifulSoup
 import re
-import os
 
 CN_ID = "id"
 CN_NAME = "name"
@@ -121,7 +126,9 @@ def parse(html):
 
         # ACTIONS
         action_tag = title_p.find("span", class_="icon-font")
-        vals[CN_ACTIONS] = parse_actions(action_tag.text.strip()) if action_tag else None
+        vals[CN_ACTIONS] = (
+            parse_actions(action_tag.text.strip()) if action_tag else None
+        )
 
         # CATEGORY + LEVEL
         cat_div = art.find("div", class_="align-right")
@@ -206,12 +213,7 @@ def parse(html):
     return (allcols, allrows)
 
 
-if __name__ == "__main__":
-    basename = os.path.splitext(os.path.basename("spells.py"))[0]
-    dbname = "pf2.db"
-    dbtable = basename
-    filein = basename + ".html"
-
-    html = open(filein, encoding="utf-8").read()
+def scrape_spells(path_db: str, flname: str, dbtable: str):
+    html = open(flname, encoding="utf-8").read()
     cols, rows = parse(html)
-    create_table_and_values(dbtable, cols, rows)
+    create_table_and_values(path_db, dbtable, cols, rows)

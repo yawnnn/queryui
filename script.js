@@ -118,7 +118,7 @@ window.onload = async function () {
     // const sqlPromise = initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${file}` });
     const sqlPromise = initSqlJs({ locateFile: file => `resources/sql-wasm-1.13.0.wasm` });
     // don't cache the db with { cache: "no-store" }
-    const dataPromise = fetch("scraping/pf2.db", { cache: "no-store" }).then(r => r.arrayBuffer());
+    const dataPromise = fetch("resources/pathfinder2e.db", { cache: "no-store" }).then(r => r.arrayBuffer());
 
     const [SQL, data] = await Promise.all([sqlPromise, dataPromise]);
     db = new SQL.Database(new Uint8Array(data));

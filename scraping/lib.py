@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 #         self.ignore_by_default = ignore_by_default
 #         self.short_name = short_name if short_name else name
 
-DBNAME = "pf2.db"
 RE_MULTIPLE_SPACES = re.compile(r"\s{2,}")
 
 
@@ -102,8 +101,10 @@ def parse_pfs_icon(soup):
     return basename
 
 
-def create_table_and_values(table: str, cols: list[(str, str)], rows: list[list[str]]):
-    conn = sqlite3.connect(DBNAME)
+def create_table_and_values(
+    path_db: str, table: str, cols: list[(str, str)], rows: list[list[str]]
+):
+    conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
 
     cursor.execute(f"DROP TABLE IF EXISTS {table}")
@@ -163,16 +164,13 @@ def infer_cols_types(cols: list[str], rows: list[list[str]]) -> list[tuple[str, 
 
         cols_with_types.append((name, t))
 
-    assert(len(cols) == len(cols_with_types))
+    assert len(cols) == len(cols_with_types)
 
     return cols_with_types
 
 
-def scrape_generic_table(basename: str):
-    dbtable = basename
-    filein = basename + ".html"
-
-    with open(filein, "r", encoding="utf-8") as f:
+def scrape_generic_table(path_db: str, flname: str, dbtable: str):
+    with open(flname, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f, "html.parser")
 
     table = soup.find("table")
@@ -223,4 +221,4 @@ def scrape_generic_table(basename: str):
 
     cols = infer_cols_types(colnames, rows)
 
-    create_table_and_values(dbtable, cols, rows)
+    create_table_and_values(path_db, dbtable, cols, rows)
