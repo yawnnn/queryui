@@ -153,7 +153,7 @@ function escape_sql_kw(s) {
 
 function buildQuery() {
     currQuery = "";
-    mainUI.showSql.innerHTML = "";
+    mainUI.showSql.textContent = "";
 
     let selections = getSelections();
 
@@ -162,11 +162,11 @@ function buildQuery() {
 
         if (currQuery !== '' && s !== '') {
             currQuery += " ";
-            mainUI.showSql.innerHTML += "\n";
+            mainUI.showSql.textContent += "\n";
         }
 
         currQuery += s;
-        mainUI.showSql.innerHTML += s;
+        mainUI.showSql.textContent += s;
     }
 
     pushSql(`SELECT ${selections.distinct ? "DISTINCT " : ""}${selections.cols.length ? selections.cols.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${selections.table}`);
@@ -237,12 +237,9 @@ function runQuery() {
     const tbody = document.createElement('tbody');
     rows.forEach(r => {
         const tr = document.createElement('tr');
-        r.forEach((cell, idx) => {
+        r.forEach((cell, _) => {
             const td = document.createElement('td');
-            // Interpret cell content as HTML
             td.innerHTML = cell === null ? '' : cell;
-            // Interpret the contents as markdown
-            // td.innerHTML = marked.parse(cell === null ? '' : String(cell));
             tr.appendChild(td);
         });
         tbody.appendChild(tr);
