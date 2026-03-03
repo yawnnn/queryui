@@ -145,10 +145,8 @@ window.onload = async function () {
     buildQuery();
 };
 
-function escape_sql_kw(s) {
-    if (s.toLowerCase() === "cast")
-        return "\"" + s + "\"";
-    return s;
+function escape_ident(s) {
+    return '"' + s.replace('"', '""') + '"'
 }
 
 function buildQuery() {
@@ -169,7 +167,7 @@ function buildQuery() {
         mainUI.showSql.textContent += s;
     }
 
-    pushSql(`SELECT ${selections.distinct ? "DISTINCT " : ""}${selections.cols.length ? selections.cols.map((c) => escape_sql_kw(c)).join(', ') : '*'} FROM ${selections.table}`);
+    pushSql(`SELECT ${selections.distinct ? "DISTINCT " : ""}${selections.cols.length ? selections.cols.map((c) => escape_ident(c)).join(', ') : '*'} FROM ${selections.table}`);
     if (selections.where.trim() !== '') pushSql(`WHERE ${selections.where}`);
     if (selections.order.trim() !== '') pushSql(`ORDER BY ${selections.order}`);
     if (selections.limit.trim() !== '') pushSql(`LIMIT ${selections.limit}`);
