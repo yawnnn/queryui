@@ -210,10 +210,25 @@ function runQuery() {
     cols.forEach(col => {
         const th = document.createElement('th');
         th.textContent = col;
-        // th.onclick = () => {
-        //     selUI.orderByClause.value = col;
-        //     runQuery();
-        // };
+
+        // detect current orderby
+        const curr = selUI.orderByClause.value.trim();
+        const match = curr.match(/^(\w+)\s+(ASC|DESC)$/i);
+        let dir = -1;   // default is this *-1, so ASC
+
+        if (match && match[1] === col) {
+            dir = match[2].toUpperCase() === "ASC" ? 1 : -1;
+            th.textContent += dir > 0 ? " ↑" : " ↓";
+        }
+
+        th.onclick = () => {
+            trh.querySelectorAll('th').forEach(th => th.textContent = th.textContent.replace(/ ↑| ↓/, ""));
+            dir *= -1;
+            selUI.orderByClause.value = `${col} ${dir > 0 ? "ASC" : "DESC"}`;
+            th.textContent = col + dir > 0 ? " ↑" : " ↓";
+
+            runQuery();
+        };
         trh.appendChild(th);
     });
     thead.appendChild(trh);
