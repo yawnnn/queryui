@@ -4,34 +4,24 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta http-equiv="Cache-Control" content="no-cache">
-    <meta http-equiv="Pragma" content="no-cache">
     <title>SQLite Visualizer</title>
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js">  -->
     <script src="resources/sql-wasm-1.13.0.js"></script>
-    <script>
-        // cache buster
-        let link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.type = "text/css";
-        link.href = "style.css?v=" + Date.now();
-        document.head.appendChild(link);
-    </script>
-    <!-- <link rel="stylesheet" type="text/css" href="style.css"> -->
+    <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
 <body>
     <!-- Table and Column Selection -->
     <div class="panel">
         <div class="sel-panel">
-            <!-- LEFT SIDE -->
+            <!-- Left side-->
             <div>
                 <select id="tableSelect"></select>
                 <div id="colsSelect"></div>
                 <button class="btn-secondary" id="selectAll"></button>
             </div>
 
-            <!-- RIGHT SIDE -->
+            <!-- Right side -->
             <div>
                 <label>WHERE
                     <input id="whereClause" type="text" />
@@ -65,16 +55,10 @@
 
     <!-- Results -->
     <div id="results">
-        <!-- Table gets dynamically inserted here -->
+        <!-- ..rows -->
     </div>
 
-    <script>
-        // cache buster
-        let s = document.createElement("script");
-        s.src = "script.js?v=" + Date.now();
-        document.body.appendChild(s);
-    </script>
-    <!-- <script src="script.js"></script> -->
+    <script src="script.js"></script>
 </body>
 
 </html>
